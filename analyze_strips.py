@@ -9,8 +9,8 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 
 if sys.version_info[0] == 3:
-    print '''This script runs using python 2.7 and you have a different version as the default.\n
-Run program using ./ rather than python to run using correct version of python'''
+    print '''This script runs using python 2.7. If you have a different version as the default\n
+run the program using ./ rather than python to run using correct version of python'''
     sys.exit()
 
 parser = argparse.ArgumentParser(description='''Reads LabView strip measurement output file. Uses measurements to make plots and output formatted data to a text file. This file uses the custom classes written in "strip_analysis_classes.py". I have tried to comment this piece of code a whole lot for anyone who may need to change it in the future :)''')
@@ -24,6 +24,16 @@ parser.add_argument('-k', '--keep_all', help='''If you have multiple measurement
                     measurement with the new one. Using this option will instead keep all
                     of the measurements.
                     \nThis is False by default.''', action='store_false', default='store_true')
+parser.add_argument('-rev', '--reverse', default='store_false', action='store_true',
+                    help='''After parsing the labview file, it will reverse the order of
+                    the strip number. So, if you started at strip 1024 instead of strip 1,
+                    then strip number N will change to strip 1024 - N +1.''')
+parser.add_argument('-mf', '--meas_first', action='store_true', default='store_false',
+                    help='''Determines the way that the plot name is ordered.
+                    By default, the naming convention for the plot is
+                    <filename>_<measurement>.png \n
+                    With this option, it will be changed to
+                    <measurement>_<filename>.png''')
 
 #if the LabView output file changes, this is the method which must be edited
 def readFile(filename, keep):
@@ -175,17 +185,100 @@ def calc_res(iv):
 
 #makes the plots of the data on linear and log y scales
 # the function first checks which measurements were taken
-# it then takes an array consiting of 
-def plotter(sensor):
-    return 0
+# it then makes log and linear plots of the plots that were taken
+def plotter(sensor, filename, meas_first):
+    sensor.check_measurement()
+    filename = filename[:-4]
+    for meas in sensor.meas_taken if sensor.meas_taken[meas]:
+        if meas = 'strip':
+            continue
+        plt.figure()
+        data = sensor.get_meas_list()
+        plt.plot(data, '-ro')
+        plt.grid()
+        plt.xlabel('Strip Number')
+        title = ''
+        meas_str = ''
+        if meas = 'ileak':
+            plt.suptitle('Leakage Current')
+            plt.ylabel('Current (A)')
+            meas_str = 'strip_leakage_current'
+        elif meas = 'ileaknbr':
+            plt.suptitle('Neighbor Strip Leakage Current')
+            plt.ylabel('Current (A)')
+            meas_str = 'nbr_leakage_current'
+        elif meas = 'rbias':
+            plt.suptitle('Polyresistor Resistance')
+            plt.ylabel('Resistance ($\Omega$)')
+            meas_str = 'strip_polyresistance'
+        elif meas = 'rbias':
+            plt.suptitle('Neighbor Polyresistor Resistance')
+            plt.ylabel('Resistance ($\Omega$)')
+            meas_str = 'nbr_polyresistance'
+        elif meas = 'strip_pinhole':
+            plt.suptitle('Pinhole Current')
+            plt.ylabel('Current (A)')
+            meas_str = 'strip_pinhole'
+        elif meas = 'bias':
+            plt.suptitle('Global Current')
+            plt.ylabel('Current (A)')
+            meas_str = 'global_current'
+        elif meas = 'cupC':
+            plt.suptitle('Coupling Capacitance')
+            plt.ylabel('Capacitance (F)')
+            meas_str = 'strip_coupling_cap'
+        elif meas = 'interC':
+            plt.suptitle('Interstrip Capacitance')
+            plt.ylabel('Capacitance (F)')
+            meas_str = 'interstrip_cap'
+        elif meas = 'interR':
+            plt.suptitle('Interstrip Resistance')
+            plt.ylabel('Resistance ($\Omega$)')
+            meas_str = 'interstrip_res'
+        elif meas = 'airT':
+            plt.suptitle('Air Temperature')
+            plt.ylabel('Temperature ($^{\circ}$C)')
+            meas_str = 'environment_air_temp'
+        elif meas = 'chuckT':
+            plt.suptitle('Chuck Temperature')
+            plt.ylabel('Temperature ($^{\circ}$C)')
+            meas_str = 'environment_chuck_temp'
+        elif meas = 'humid':
+            plt.suptitle('Relative Humidity')
+            plt.ylabe('Humidity \%')
+            meas_str = 'environment_humidity'
+        if meas_first:
+            title = meas_str + '_' + filename
+        else:
+            title = filename + '_' + meas_str
+        plt.savefig('%s.png' %title)
+        data_abs = [[strip,abs(meas)] for strip, meas in data]
+        plt.semilogy(data_abs, '-ro')
+        plt.savefig('%s_logy.png' %title)
 
-def makeRoot():
-    return 0
+#checks if you have the pyroot library installed. If you do, it will then output your
+# measurements to a ROOT file. You must use the '-r' argument when running
+# the script in order to run this function
+def makeRoot(sensor):
+    try:
+        import ROOT as r
+    except importError:
+        print 'pyRoot is not installed...baka!'
+        return
+    sensor.order()
+    sensor.check_measurement()
+    tree = R.TTree('meas', 'Measurement Data')
+    tree.Branch('strip', sensor.get_bare_meas_list('strip'), 'strip/I')
+    for meas in sensor.meas_taken if sensor.meas_taken[meas]:
+        tree.Branch(meas, sensor.get_bare_meas_list(meas), '%s/F' %meas)
+    tree.Fill()
 
 
 def main():
     args=parser.parse_args()
     sensor = readFile(args.file, args.keep_all)
+    if args.reverse:
+        sensor.reverse_strips()
     for item in sensor.get_list():
         print item
     if args.root:
