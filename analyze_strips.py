@@ -17,18 +17,17 @@ parser = argparse.ArgumentParser(description='''Reads LabView strip measurement 
 parser.add_argument('file', help='Required input, tells script which text file to read')
 parser.add_argument('-r', '--root', help='''Create a ROOT file with the parsed measurements.
                     You must have the pyroot library installed to use this otion.
-                    \nThis is False by default''',
-                    action='store_true', default='store_false')
+                    \nThis is False by default''', action='store_true')
 parser.add_argument('-k', '--keep_all', help='''If you have multiple measurements
                     with the same strip measurement, the script will replace the previous
                     measurement with the new one. Using this option will instead keep all
                     of the measurements.
-                    \nThis is False by default.''', action='store_false', default='store_true')
-parser.add_argument('-rev', '--reverse', default='store_false', action='store_true',
+                    \nThis is False by default.''', action='store_false')
+parser.add_argument('-rev', '--reverse', action='store_true',
                     help='''After parsing the labview file, it will reverse the order of
                     the strip number. So, if you started at strip 1024 instead of strip 1,
                     then strip number N will change to strip 1024 - N +1.''')
-parser.add_argument('-mf', '--meas_first', action='store_true', default='store_false',
+parser.add_argument('-mf', '--meas_first', action='store_true',
                     help='''Determines the way that the plot name is ordered.
                     By default, the naming convention for the plot is
                     <filename>_<measurement>.png \n
@@ -86,6 +85,9 @@ def readFile(filename, keep):
             strip_meas.add_meas('strip', int(line.split()[1]))
             line = f.next()
             continue
+
+        ##### For T and H measurements, this splitting does not pick up sci notation. Labview script needs to be edited to output names correctly ####
+
         #get chuck temperature
         elif 'ChuckT' in line:
             #the weird stuff in split is basically just telling it to split at the boundary of chars and numbers
@@ -93,7 +95,7 @@ def readFile(filename, keep):
             line = f.next()
             continue
         #get air temperature
-        elif 'airT' in line:
+        elif 'AirT' in line:
             strip_meas.add_meas('airT', float(re.split('(\d+\.\d+)',line)[1]))
             line = f.next()
             continue
@@ -187,102 +189,137 @@ def calc_res(iv):
 # the function first checks which measurements were taken
 # it then makes log and linear plots of the plots that were taken
 def plotter(sensor, filename, meas_first):
-    sensor.check_measurement()
+    sensor.check_measurements()
     filename = filename[:-4]
-    for meas in sensor.meas_taken if sensor.meas_taken[meas]:
-        if meas = 'strip':
+    for meas in sensor.meas_taken():
+        if not sensor.meas_taken()[meas]: continue
+        if meas == 'strip':
             continue
+        print "making", meas, "plot"
         plt.figure()
-        data = sensor.get_meas_list()
+        #data = sensor.get_meas_list(meas)
+        data = sensor.get_meas(meas)
         plt.plot(data, '-ro')
         plt.grid()
         plt.xlabel('Strip Number')
         title = ''
         meas_str = ''
-        if meas = 'ileak':
+        log = True
+        if meas == 'ileak':
             plt.suptitle('Leakage Current')
             plt.ylabel('Current (A)')
             meas_str = 'strip_leakage_current'
-        elif meas = 'ileaknbr':
+        elif meas == 'ileaknbr':
             plt.suptitle('Neighbor Strip Leakage Current')
             plt.ylabel('Current (A)')
             meas_str = 'nbr_leakage_current'
-        elif meas = 'rbias':
+        elif meas == 'rbias':
             plt.suptitle('Polyresistor Resistance')
             plt.ylabel('Resistance ($\Omega$)')
             meas_str = 'strip_polyresistance'
-        elif meas = 'rbias':
+        elif meas == 'rbias':
             plt.suptitle('Neighbor Polyresistor Resistance')
             plt.ylabel('Resistance ($\Omega$)')
             meas_str = 'nbr_polyresistance'
-        elif meas = 'strip_pinhole':
+        elif meas == 'strip_pinhole':
             plt.suptitle('Pinhole Current')
             plt.ylabel('Current (A)')
             meas_str = 'strip_pinhole'
-        elif meas = 'bias':
+        elif meas == 'bias':
             plt.suptitle('Global Current')
             plt.ylabel('Current (A)')
             meas_str = 'global_current'
-        elif meas = 'cupC':
+        elif meas == 'cupC':
             plt.suptitle('Coupling Capacitance')
             plt.ylabel('Capacitance (F)')
             meas_str = 'strip_coupling_cap'
-        elif meas = 'interC':
+        elif meas == 'interC':
             plt.suptitle('Interstrip Capacitance')
             plt.ylabel('Capacitance (F)')
             meas_str = 'interstrip_cap'
-        elif meas = 'interR':
+        elif meas == 'interR':
             plt.suptitle('Interstrip Resistance')
             plt.ylabel('Resistance ($\Omega$)')
             meas_str = 'interstrip_res'
-        elif meas = 'airT':
+        elif meas == 'airT':
             plt.suptitle('Air Temperature')
             plt.ylabel('Temperature ($^{\circ}$C)')
             meas_str = 'environment_air_temp'
-        elif meas = 'chuckT':
+            log = False
+        elif meas == 'chuckT':
             plt.suptitle('Chuck Temperature')
             plt.ylabel('Temperature ($^{\circ}$C)')
             meas_str = 'environment_chuck_temp'
-        elif meas = 'humid':
+            log = False
+        elif meas == 'humid':
             plt.suptitle('Relative Humidity')
-            plt.ylabe('Humidity \%')
+            plt.ylabel('Humidity %')
             meas_str = 'environment_humidity'
+            log = False
         if meas_first:
             title = meas_str + '_' + filename
         else:
             title = filename + '_' + meas_str
         plt.savefig('%s.png' %title)
-        data_abs = [[strip,abs(meas)] for strip, meas in data]
-        plt.semilogy(data_abs, '-ro')
-        plt.savefig('%s_logy.png' %title)
+        if log:
+            #data_abs = [[strip,abs(meas)] for strip, meas in data]
+            data_abs = [abs(meas) for meas in data]
+            plt.semilogy(data_abs, '-ro')
+            plt.savefig('%s_logy.png' %title)
+
+#This is really annoying but in this version of python dictionaries are unordered
+# so the only way to make the output file ordered in a specific way is to manually
+# make a list
+def Output(sensor, filename):
+    meas_order = ['strip', 'ileak', 'ileaknbr', 'bias', 'rbias', 'rbiasnbr', 'pinhole', 'coupC', 'interC', 'interR', 'humid', 'airT', 'chuckT']
+    fout = open(filename[:-4] + '_StripMeasurements.txt', 'w')
+    for meas in meas_order:
+        if sensor.meas_taken()[meas]:
+            fout.write(meas+'\t')
+    fout.write('\n')
+    for strip in sensor.get_strips():
+        for meas in meas_order:
+            if meas == 'strip':
+                fout.write(str(strip[meas])+'\t')
+            elif sensor.meas_taken()[meas]:
+                fout.write('%.4g' % strip[meas])
+                fout.write('\t')
+        fout.write('\n')
 
 #checks if you have the pyroot library installed. If you do, it will then output your
 # measurements to a ROOT file. You must use the '-r' argument when running
 # the script in order to run this function
-def makeRoot(sensor):
+# I need to do this weird thing with making a list into an array
+# becaues pyroot is terrible and has problems making branches
+def makeRoot(sensor, filename):
+    from array import array
     try:
-        import ROOT as r
+        import ROOT as R
     except importError:
         print 'pyRoot is not installed...baka!'
         return
-    sensor.order()
-    sensor.check_measurement()
     tree = R.TTree('meas', 'Measurement Data')
-    tree.Branch('strip', sensor.get_bare_meas_list('strip'), 'strip/I')
-    for meas in sensor.meas_taken if sensor.meas_taken[meas]:
-        tree.Branch(meas, sensor.get_bare_meas_list(meas), '%s/F' %meas)
+    tree.Branch('strip', array( 'i', sensor.get_meas('strip')), 'strip/I')
+    for meas in sensor.meas_taken():
+        if not sensor.meas_taken()[meas]: continue
+        if meas == 'strip': continue
+        tree.Branch(meas, array( 'f', sensor.get_meas(meas)), '%s/F' %meas)
     tree.Fill()
-
+    RFile = R.TFile(filename[:-4] + '_StripMeasurements.root', 'RECREATE')
+    RFile.Write("",R.TObject.kOverwrite)
+    RFile.Close()
 
 def main():
     args=parser.parse_args()
     sensor = readFile(args.file, args.keep_all)
     if args.reverse:
         sensor.reverse_strips()
-    for item in sensor.get_list():
-        print item
+    sensor.order()
+    sensor.check_measurements()
+    plotter(sensor, args.file, args.meas_first)
+    Output(sensor, args.file)
     if args.root:
-        makeRoot()
+        makeRoot(sensor, args.file)
 
 if __name__ == '__main__':
     main()
