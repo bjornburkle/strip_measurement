@@ -27,6 +27,9 @@ parser.add_argument('-rev', '--reverse', action='store_true',
                     help='''After parsing the labview file, it will reverse the order of
                     the strip number. So, if you started at strip 1024 instead of strip 1,
                     then strip number N will change to strip 1024 - N +1.''')
+parser.add_argument('-c', '--check_diff', action='store_true',
+                    help='''For ileak and rbias, plots the difference between the measurements
+                    when they were taken as the DC pad with the measurement when taken as neighbor''')
 parser.add_argument('-mf', '--meas_first', action='store_true',
                     help='''Determines the way that the plot name is ordered.
                     By default, the naming convention for the plot is
@@ -217,11 +220,11 @@ def plotter(sensor, filename, meas_first):
             plt.suptitle('Polyresistor Resistance')
             plt.ylabel('Resistance ($\Omega$)')
             meas_str = 'strip_polyresistance'
-        elif meas == 'rbias':
+        elif meas == 'rbiasnbr':
             plt.suptitle('Neighbor Polyresistor Resistance')
             plt.ylabel('Resistance ($\Omega$)')
             meas_str = 'nbr_polyresistance'
-        elif meas == 'strip_pinhole':
+        elif meas == 'pinhole':
             plt.suptitle('Pinhole Current')
             plt.ylabel('Current (A)')
             meas_str = 'strip_pinhole'
@@ -229,7 +232,7 @@ def plotter(sensor, filename, meas_first):
             plt.suptitle('Global Current')
             plt.ylabel('Current (A)')
             meas_str = 'global_current'
-        elif meas == 'cupC':
+        elif meas == 'coupC':
             plt.suptitle('Coupling Capacitance')
             plt.ylabel('Capacitance (F)')
             meas_str = 'strip_coupling_cap'
@@ -256,6 +259,16 @@ def plotter(sensor, filename, meas_first):
             plt.ylabel('Humidity %')
             meas_str = 'environment_humidity'
             log = False
+        elif meas == 'ileak_diff':
+            plt.suptitle('ileak_nbr - ileak')
+            plt.ylabel('Current (A)')
+            meas_str = 'strip_ileak_diff'
+            log=False
+        elif meas == 'rbias_diff':
+            plt.suptitle('rbias_nbr - rbias')
+            plt.ylabel('Resistance ($\Omega$)')
+            meas_str = 'strip_rbias_diff'
+            log=False
         if meas_first:
             title = meas_str + '_' + filename
         else:
@@ -267,11 +280,12 @@ def plotter(sensor, filename, meas_first):
             plt.semilogy(data_abs, '-ro')
             plt.savefig('%s_logy.png' %title)
 
+
 #This is really annoying but in this version of python dictionaries are unordered
 # so the only way to make the output file ordered in a specific way is to manually
 # make a list
 def Output(sensor, filename):
-    meas_order = ['strip', 'ileak', 'ileaknbr', 'bias', 'rbias', 'rbiasnbr', 'pinhole', 'coupC', 'interC', 'interR', 'humid', 'airT', 'chuckT']
+    meas_order = ['strip', 'ileak', 'ileaknbr', 'ileak_diff', 'bias', 'rbias', 'rbiasnbr', 'rbias_diff', 'pinhole', 'coupC', 'interC', 'interR', 'humid', 'airT', 'chuckT']
     fout = open(filename[:-4] + '_StripMeasurements.txt', 'w')
     for meas in meas_order:
         if sensor.meas_taken()[meas]:
@@ -316,6 +330,9 @@ def main():
         sensor.reverse_strips()
     sensor.order()
     sensor.check_measurements()
+    if args.check_diff:
+        sensor.compare_neighbor('ileak')
+        sensor.compare_neighbor('rbias')
     plotter(sensor, args.file, args.meas_first)
     Output(sensor, args.file)
     if args.root:

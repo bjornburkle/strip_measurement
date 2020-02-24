@@ -2,7 +2,7 @@
 
 class strip:
 
-    #unfortunately these key names are hard coded into the other scripts
+    # unfortunately these key names are hard coded into the other scripts
     # which use this file. You are welcome to add keys to this dictionary.
     # But, under no circumstance should you edit any key names unless
     # you want to give yourself a headache. That being said, you are free
@@ -51,7 +51,7 @@ class sensor:
     _meas_taken = {}
     strips = []
 
-    #takes the measurements contained in the strip class and appends them
+    # takes the measurements contained in the strip class and appends them
     # to the sensor object
 
     def add_strip(self, strip_meas, keep = False):
@@ -60,7 +60,7 @@ class sensor:
             return
         self.strips.append(strip_meas.get_all_meas().copy())
 
-    #replace a measurement with a new one taken on the same strip
+    # replace a measurement with a new one taken on the same strip
     # note that this is meant to be private so it doesn't check if the strip
     # was measured in the first place, so don't call this in your script
     # instead use self.add_strip(meas, True)
@@ -147,14 +147,28 @@ class sensor:
             else:
                 self._meas_taken[meas] = True
 
-    #returns whether or not a specific measurement was taken
+    # returns whether or not a specific measurement was taken
     
     def meas_taken(self):
         return self._meas_taken
 
-    #returns the list containing all of the strip measurements
+    # returns the list containing all of the strip measurements
     def get_list(self):
         return self.strips
+
+    # Give script a measurement that you take on the DC pad and DC neighbor pad
+    # then create new list which is the difference between the nominal and neighbor value
+    # this is then inserted into each "strip" as a new measurement. Make sure that
+    # the strips are sorted before running this command
+    def compare_neighbor(self, meas):
+        assert (self._meas_taken[meas] and self._meas_taken[meas+'nbr']), 'Either %s or %snbr measurement not taken' % (meas, meas)
+        meas_str = meas + '_diff'
+        new_meas = [ (x - y) for x, y in zip(self.get_meas(meas+'nbr')[:-1], self.get_meas(meas)[1:])]
+        new_meas.insert(0, 0.)
+        for strip, diff in enumerate(new_meas):
+            self.strips[strip][meas_str] = diff
+        self._meas_taken[meas_str] = True
+
 
 
 def main():
