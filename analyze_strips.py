@@ -202,7 +202,7 @@ def plotter(sensor, filename, meas_first):
         plt.figure()
         #data = sensor.get_meas_list(meas)
         data = sensor.get_meas(meas)
-        plt.plot(data, '-ro')
+        plt.plot(data, '-r.')
         plt.grid()
         plt.xlabel('Strip Number')
         title = ''
@@ -277,7 +277,7 @@ def plotter(sensor, filename, meas_first):
         if log:
             #data_abs = [[strip,abs(meas)] for strip, meas in data]
             data_abs = [abs(meas) for meas in data]
-            plt.semilogy(data_abs, '-ro')
+            plt.semilogy(data_abs, '-r.')
             plt.savefig('%s_logy.png' %title)
 
 
@@ -310,7 +310,7 @@ def makeRoot(sensor, filename):
     try:
         import ROOT as R
     except importError:
-        print 'pyRoot is not installed...baka!'
+        print 'pyRoot is not installed'
         return
     tree = R.TTree('meas', 'Measurement Data')
     tree.Branch('strip', array( 'i', sensor.get_meas('strip')), 'strip/I')
