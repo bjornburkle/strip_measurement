@@ -4,8 +4,6 @@ import strip_analysis_classes as sistrip
 import sys
 import argparse
 import re
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import numpy as np
 
 if sys.version_info[0] == 3:
@@ -15,8 +13,9 @@ run the program using ./ rather than python to run using correct version of pyth
 
 parser = argparse.ArgumentParser(description='''Reads LabView strip measurement output file. Uses measurements to make plots and output formatted data to a text file. This file uses the custom classes written in "strip_analysis_classes.py". I have tried to comment this piece of code a whole lot for anyone who may need to change it in the future :)''')
 parser.add_argument('file', help='Required input, tells script which text file to read')
+parser.add_argument('-np', '--noplot', action='store_true', help='''Choose to run the script but not produce any plots. Use this flag when running on brux to avoid tkinter errors associated with pyplot''')
 parser.add_argument('-r', '--root', help='''Create a ROOT file with the parsed measurements.
-                    You must have the pyroot library installed to use this otion.
+                    You must have the pyroot library installed to use this option.
                     \nThis is False by default''', action='store_true')
 parser.add_argument('-k', '--keep_all', help='''If you have multiple measurements
                     with the same strip measurement, the script will replace the previous
@@ -192,6 +191,12 @@ def calc_res(iv):
 # the function first checks which measurements were taken
 # it then makes log and linear plots of the plots that were taken
 def plotter(sensor, filename, meas_first):
+    try:
+        import matplotlib.pyplot as plt
+    except:
+        print 'Trying to plot but getting error when importing pyplot. Skipping plotting step'
+        return
+    import matplotlib.gridspec as gridspec
     sensor.check_measurements()
     filename = filename[:-4]
     for meas in sensor.meas_taken():
@@ -284,8 +289,11 @@ def plotter(sensor, filename, meas_first):
 #This is really annoying but in this version of python dictionaries are unordered
 # so the only way to make the output file ordered in a specific way is to manually
 # make a list
-def Output(sensor, filename):
+def Output(sensor, filename, check_diff):
     meas_order = ['strip', 'ileak', 'ileaknbr', 'ileak_diff', 'bias', 'rbias', 'rbiasnbr', 'rbias_diff', 'pinhole', 'coupC', 'interC', 'interR', 'humid', 'airT', 'chuckT']
+    if not check_diff:
+        meas_order.remove('ileak_diff')
+        meas_order.remove('rbias_diff')
     fout = open(filename[:-4] + '_StripMeasurements.txt', 'w')
     for meas in meas_order:
         if sensor.meas_taken()[meas]:
@@ -333,8 +341,9 @@ def main():
     if args.check_diff:
         sensor.compare_neighbor('ileak')
         sensor.compare_neighbor('rbias')
-    plotter(sensor, args.file, args.meas_first)
-    Output(sensor, args.file)
+    if not args.noplot:
+        plotter(sensor, args.file, args.meas_first)
+    Output(sensor, args.file, args.check_diff)
     if args.root:
         makeRoot(sensor, args.file)
 
